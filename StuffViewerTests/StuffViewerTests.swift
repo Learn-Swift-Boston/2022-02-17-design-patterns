@@ -7,20 +7,9 @@
 
 import XCTest
 @testable import StuffViewer
+import ComposableArchitecture
 
 class StuffViewerTests: XCTestCase {
-
-//    func testThings() {
-//        let view = ContentView(posts: [])
-//
-//        XCTAssertEqual(view.posts, [])
-//    }
-
-//    func testViewModelLoading() {
-//        let viewModel = ViewModel()
-//        viewModel.load()
-//        XCTAssertEqual(viewModel.filteredPosts.count, 100)
-//    }
 
     func testFiltering() {
 
@@ -28,38 +17,52 @@ class StuffViewerTests: XCTestCase {
         let user1Post2: Post = .init(id: 2, userId: 1, title: "user 1 post 2", body: "")
         let user2Post3: Post = .init(id: 3, userId: 2, title: "user 2 post 3", body: "")
 
+        let mainQueue = DispatchQueue.test
 
-        let viewModel = ViewModel(posts: [
+        let store = TestStore(
+            initialState: .init(),
+            reducer: viewReducer,
+            environment: .init(
+                fetchPosts: {
+                    Effect(value: [
+                        user1Post1,
+                        user1Post2,
+                        user2Post3,
+                    ])
+                        .delay(for: 10, scheduler: mainQueue)
+                        .eraseToEffect()
+                },
+                mainQueue: mainQueue.eraseToAnyScheduler()
+            )
+        )
+
+        store.send(.appear)
+        mainQueue.advance(by: .seconds(10))
+        store.receive(.postsLoaded([
             user1Post1,
             user1Post2,
             user2Post3,
-        ])
+        ])) {
+            $0.posts = [
+                user1Post1,
+                user1Post2,
+                user2Post3,
+            ]
 
-        viewModel.load()
+            $0.filteredPosts = [
+                user1Post1,
+                user1Post2,
+                user2Post3,
+            ]
+        }
 
-        XCTAssertEqual(viewModel.filteredPosts, [
-            user1Post1,
-            user1Post2,
-            user2Post3,
-        ])
-
-        viewModel.filteredUser = 1
-        XCTAssertEqual(viewModel.filteredPosts, [
-            user1Post1,
-            user1Post2,
-        ])
-
-        viewModel.filteredUser = 2
-        XCTAssertEqual(viewModel.filteredPosts, [
-            user2Post3,
-        ])
-
-        viewModel.filteredUser = nil
-        XCTAssertEqual(viewModel.filteredPosts, [
-            user1Post1,
-            user1Post2,
-            user2Post3,
-        ])
+        store.send(.filteredUserChanged(1)) {
+            $0.filteredUser = 1
+            $0.filteredPosts = [
+                user1Post1,
+                user1Post2,
+            ]
+        }
     }
 
 }
